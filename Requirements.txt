@@ -1,0 +1,3 @@
+pip install python-telegram-bot
+pip install pyscreenshot
+pip install linearwinvolume
