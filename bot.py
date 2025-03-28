@@ -1,82 +1,84 @@
-from telegram.ext.updater import Updater
-from telegram.update import Update
-from telegram.ext.commandhandler import CommandHandler
-from telegram.ext.messagehandler import MessageHandler
-from telegram.ext.callbackcontext import CallbackContext
-from telegram.ext.filters import Filters
-from telegram import ParseMode,ReplyKeyboardMarkup,ReplyKeyboardRemove
+import telebot
 import webbrowser
 import pyscreenshot
 import os
 import subprocess
 import ctypes
-from shlex import quote
-import linearwinvolume as lv
-updater=Updater("paste your bot api here",use_context=True)
+import pyvolume
 
-def start(update: Update, context:CallbackContext):
-    update.message.reply_text("Hello how can i help you /help to see commands")
+TOKEN = "7895037300:AAFqc08uqQldfKzaDdXPwmmqtO97wqEpWSs"
+bot = telebot.TeleBot(TOKEN)
 
-def unknown_command(update:Update, context: CallbackContext):
-    update.message.reply_text("This command '%s' is not available" % update.message.text)
-def help(update:Update,context: CallbackContext):
-    update.message.reply_text("this is help")
+@bot.message_handler(commands=['start'])
+def start(message):
+    bot.reply_to(message, "Hello, how can I help you? Use /help to see commands.")
 
-def unknowm_text(update:Update ,context: CallbackContext):
-    if update.message.from_user['username']=="enter your username here":
-        msg=update.message.text
-        if msg=="hello":
-            update.message.reply_text("hii sir")
-        elif msg=="youtube":
-            webbrowser.open("www.youtube.com")
-            update.message.reply_text("opening youtube")
-        elif msg=="screenshot":
-            path="screenshot.png"
-            img=pyscreenshot.grab()
-            img.save(path)
-            update.message.reply_photo(open(path,'rb'),caption="here's your screenshot")
-            os.remove(path)
-        elif msg=="close keyboard":
-            reply_markup=ReplyKeyboardRemove()
-            update.message.reply_text(reply_markup=reply_markup,text="keyboard down")
-        elif msg=="shutdown":
-            subprocess.run('shutdown /s')
-            text = "Shutted down."
-            update.message.reply_text(text=text)
-        elif msg=="lock":
-            ctypes.windll.user32.LockWorkStation()
-            text = "PC locked."
-            update.message.reply_text(text=text)
-        elif msg=="mute":
-            lv.set_volume(0)
-            update.message.reply_text("muted")
-            
-    else:
-        update.message.reply_text("This is personal you can't use it")
-def launch(update: Update, context: CallbackContext):
-    ret = subprocess.run("start %s" % quote(context.args[0]), shell=True).returncode
-    text = "Launching " + (context.args[0]) + "..."
-    update.message.reply_text(text=text)
+@bot.message_handler(commands=['help'])
+def help_command(message):
+    bot.reply_to(message, "This is help.")
+
+@bot.message_handler(commands=['launch'])
+def launch(message):
+    args = message.text.split(maxsplit=1)
+    if len(args) < 2:
+        bot.reply_to(message, "Please provide an application to launch.")
+        return
+    ret = subprocess.run(f"start {args[1]}", shell=True).returncode
+    text = f"Launching {args[1]}..."
+    bot.reply_to(message, text)
     if ret == 1:
-        text = "Cannot launch " + (context.args[0])
-        update.message.reply_text(text=text)
-def volume(update:Update, context: CallbackContext):
-    lv.set_volume(int(context.args[0]))
+        bot.reply_to(message, f"Cannot launch {args[1]}")
 
-def keyboard(update:Update, context: CallbackContext):
-    keyboard=[["screenshot","youtube","mute"],
-              ["shutdown","lock"],
-              ["close Keyboard"]]
-    reply_markup=ReplyKeyboardMarkup(keyboard,resize_keyboard=True)
-    update.message.reply_text(reply_markup=reply_markup,text="keyboard is up")
+@bot.message_handler(commands=['volume'])
+def volume(message):
+    args = message.text.split()
+    if len(args) < 2:
+        bot.reply_to(message, "Please provide a volume level (0-100).")
+        return
+    try:
+        volume_level = int(args[1])
+        pyvolume.custom(percent=volume_level)
+        bot.reply_to(message, f"Volume set to {volume_level}%")
+    except ValueError:
+        bot.reply_to(message, "Invalid volume level.")
 
-updater.dispatcher.add_handler(CommandHandler("start",start))
-updater.dispatcher.add_handler(CommandHandler("help",help))
-updater.dispatcher.add_handler(CommandHandler("keyboard",keyboard))
-updater.dispatcher.add_handler(CommandHandler("launch",launch))
-updater.dispatcher.add_handler(CommandHandler("volume",volume))
-updater.dispatcher.add_handler(MessageHandler(Filters.command,unknown_command))
-updater.dispatcher.add_handler(MessageHandler(Filters.text,unknowm_text))
+@bot.message_handler(commands=['keyboard'])
+def keyboard(message):
+    markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
+    markup.row("screenshot", "youtube", "mute")
+    markup.row("shutdown", "lock")
+    markup.row("close keyboard")
+    bot.send_message(message.chat.id, "Keyboard is up.", reply_markup=markup)
 
-updater.start_polling()
-print("bot started")
+@bot.message_handler(func=lambda message: True)
+def handle_text(message):
+    if message.from_user.username == "ViveshDheer":
+        msg = message.text.lower()
+        if msg == "hello":
+            bot.reply_to(message, "Hi Sir")
+        elif msg == "youtube":
+            webbrowser.open("https://www.youtube.com")
+            bot.reply_to(message, "Opening YouTube")
+        elif msg == "screenshot":
+            path = "screenshot.png"
+            img = pyscreenshot.grab()
+            img.save(path)
+            with open(path, 'rb') as photo:
+                bot.send_photo(message.chat.id, photo, caption="Here's your screenshot")
+            os.remove(path)
+        elif msg == "close keyboard":
+            bot.send_message(message.chat.id, "Keyboard down", reply_markup=telebot.types.ReplyKeyboardRemove())
+        elif msg == "shutdown":
+            subprocess.run('shutdown /s')
+            bot.reply_to(message, "Shutting down...")
+        elif msg == "lock":
+            ctypes.windll.user32.LockWorkStation()
+            bot.reply_to(message, "PC locked.")
+        elif msg == "mute":
+            pyvolume.custom(percent=0)
+            bot.reply_to(message, "Muted")
+    else:
+        bot.reply_to(message, "This is personal, you can't use it.")
+
+print("Bot started")
+bot.polling(none_stop=True)
