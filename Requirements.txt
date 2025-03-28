@@ -1,3 +1,4 @@
 pyscreenshot
 pillow
 pyTelegramBotAPI
+volume-control
